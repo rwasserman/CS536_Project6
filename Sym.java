@@ -6,9 +6,12 @@ import java.util.*;
  ***/
 public class Sym {
     private Type type;
+    private int offset;
     
     public Sym(Type type) {
         this.type = type;
+        this.offset = 0;
+        
     }
     
     public Type getType() {
@@ -17,6 +20,14 @@ public class Sym {
     
     public String toString() {
         return type.toString();
+    }
+
+    public int getOffset() {
+        return offset;
+    }
+
+    public void setOffset(int offset) {
+        this.offset = offset;
     }
 }
 

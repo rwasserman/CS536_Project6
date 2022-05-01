@@ -133,6 +133,40 @@ class ProgramNode extends ASTnode {
     public void nameAnalysis() {
         SymTable symTab = new SymTable();
         myDeclList.nameAnalysis(symTab);
+
+        List<DeclNode> nodes = myDeclList.getList();
+
+        boolean hasMain = false;
+
+        for(int i = 0; i < nodes.size(); i++ ) {
+
+            DeclNode decleration = nodes.get(i);
+            
+
+            if (decleration instanceof FnDeclNode ) {
+
+                FnDeclNode functionDecleration = (FnDeclNode)decleration;
+
+                IdNode fnDeclID = functionDecleration.getIdNode();
+
+                String nameOfMethod = fnDeclID.name();
+                //System.out.println(nameOfMethod);
+
+                if (nameOfMethod.equals("main")) {
+                    //we have a confirmed main method
+                    hasMain = true;   
+
+                }
+
+            }  
+
+        }
+
+        if ( !hasMain ) {
+            //does not have main, throw error message
+            ErrMsg.fatal(0, 0, "No main function");
+        }
+
     }
     
     /***
@@ -198,6 +232,10 @@ class DeclListNode extends ASTnode {
             System.err.println("unexpected NoSuchElementException in DeclListNode.print");
             System.exit(-1);
         }
+    }
+
+    public List<DeclNode> getList() {
+        return this.myDecls;
     }
 
     // list of kids (DeclNodes)
@@ -594,6 +632,11 @@ class FnDeclNode extends DeclNode {
         p.println(") {");
         myBody.unparse(p, indent+4);
         p.println("}\n");
+    }
+
+
+    public IdNode getIdNode() {
+        return this.myId;
     }
 
     // 4 kids
@@ -2172,6 +2215,7 @@ abstract class RelationalExpNode extends BinaryExpNode {
     }
 }
 
+
 class PlusNode extends ArithmeticExpNode {
     public PlusNode(ExpNode exp1, ExpNode exp2) {
         super(exp1, exp2);
@@ -2310,6 +2354,11 @@ class GreaterNode extends RelationalExpNode {
         p.print(" > ");
         myExp2.unparse(p, 0);
         p.print(")");
+    }
+
+    public void codeGen() {
+
+
     }
 }
 
