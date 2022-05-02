@@ -5,12 +5,16 @@ import java.util.*;
  * Each Sym contains a type (a Type).
  ***/
 public class Sym {
-    private Type type;
-    private int offset;
+    private Type type; 
+    private static int currOffset;
+    
+    private int localOffset;
+    private static boolean trueIfLocal;
     
     public Sym(Type type) {
         this.type = type;
-        this.offset = 0;
+        this.localOffset = 0;
+        
         
     }
     
@@ -22,12 +26,32 @@ public class Sym {
         return type.toString();
     }
 
-    public int getOffset() {
-        return offset;
+    public static int getCurrOffset() {
+        return currOffset;
     }
 
-    public void setOffset(int offset) {
-        this.offset = offset;
+    public static boolean getTrueIfLocal() {
+        return trueIfLocal;
+    }
+
+     public int getLocalOffset() {
+        return localOffset;
+    }
+
+
+
+
+    public void setLocalOffset(int offset) {
+        this.localOffset = offset;
+    }
+
+    public static void setTrueIfLocal(boolean bool) {
+        trueIfLocal = bool;  
+
+    }
+    
+    public static void setCurrOffset(int localOffset) {
+        currOffset = localOffset;
     }
 }
 
@@ -41,6 +65,8 @@ class FnSym extends Sym {
     private Type returnType;
     private int numParams;
     private List<Type> paramTypes;
+    private int paramSize;
+    private int localsSize;
     
     public FnSym(Type type, int numparams) {
         super(new FnType());
@@ -62,6 +88,22 @@ class FnSym extends Sym {
 
     public List<Type> getParamTypes() {
         return paramTypes;
+    }
+
+    public int getParamSize() {
+        return paramSize;
+    }
+
+    public int getLocalsSize() {
+        return localsSize;
+    }
+
+    public void setParamSize(int paramSize) {
+        this.paramSize = paramSize;
+    }
+
+    public void setLocalsSize(int localsSize) {
+        this.localsSize = localsSize;
     }
 
     public String toString() {

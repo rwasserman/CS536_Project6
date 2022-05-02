@@ -132,6 +132,10 @@ class ProgramNode extends ASTnode {
      ***/
     public void nameAnalysis() {
         SymTable symTab = new SymTable();
+
+        Sym.setTrueIfLocal(false);
+        Sym.setCurrOffset(0);
+        
         myDeclList.nameAnalysis(symTab);
 
         List<DeclNode> nodes = myDeclList.getList();
@@ -204,14 +208,23 @@ class DeclListNode extends ASTnode {
      * decls in the list.
      ***/    
     public void nameAnalysis(SymTable symTab, SymTable globalTab) {
+        int myOffset = Sym.getCurrOffset();
+        
         for (DeclNode node : myDecls) {
             if (node instanceof VarDeclNode) {
-                ((VarDeclNode)node).nameAnalysis(symTab, globalTab);
+                Sym sym = ((VarDeclNode)node).nameAnalysis(symTab, globalTab);
+                if(Sym.getTrueIfLocal()) {
+                    sym.setLocalOffset(myOffset);
+                    myOffset = myOffset - 4;
+                    Sym.setCurrOffset(myOffset);
+                }
             } else {
                 node.nameAnalysis(symTab);
             }
         }
     }    
+
+    
     
     /***
      * typeCheck
@@ -255,11 +268,24 @@ class FormalsListNode extends ASTnode {
      *     if there was no error, add type of formal decl to list
      ***/
     public List<Type> nameAnalysis(SymTable symTab) {
+        int myOffset = Sym.getCurrOffset();
         List<Type> typeList = new LinkedList<Type>();
+        
         for (FormalDeclNode node : myFormals) {
             Sym sym = node.nameAnalysis(symTab);
             if (sym != null) {
+
+                sym.setLocalOffset(myOffset);
+                
+                //then add to list
                 typeList.add(sym.getType());
+
+                //then subtract 4
+                myOffset -= 4;
+
+                //update global offset to myoffset
+                Sym.setCurrOffset(myOffset);
+
             }
         }
         return typeList;
@@ -567,6 +593,10 @@ class FnDeclNode extends DeclNode {
     public Sym nameAnalysis(SymTable symTab) {
         String name = myId.name();
         FnSym sym = null;
+
+        
+
+
         try {
 			if (symTab.lookupLocal(name) != null) {
 				ErrMsg.fatal(myId.lineNum(), myId.charNum(),
@@ -600,9 +630,18 @@ class FnDeclNode extends DeclNode {
         List<Type> typeList = myFormalsList.nameAnalysis(symTab);
         if (sym != null) {
             sym.addFormals(typeList);
+
+            
+
+            sym.setParamSize(myFormalsList.length() * 4);
+            
         }
+        int myOffset = Sym.getCurrOffset();
+        Sym.setCurrOffset(myOffset - 8);
         
         myBody.nameAnalysis(symTab); // process the function body
+
+        sym.setLocalsSize(myOffset - (myOffset- 8));
         
         try {
             symTab.removeScope();  // exit scope
@@ -611,6 +650,9 @@ class FnDeclNode extends DeclNode {
                                " in FnDeclNode.nameAnalysis");
             System.exit(-1);
         }
+
+        Sym.setCurrOffset(0);
+        Sym.setTrueIfLocal(false);
         
         return null;
     } 
@@ -1377,6 +1419,7 @@ abstract class ExpNode extends ASTnode {
     abstract public Type typeCheck();
     abstract public int lineNum();
     abstract public int charNum();
+    abstract public void codeGen();
 }
 
 class IntLitNode extends ExpNode {
@@ -1414,6 +1457,11 @@ class IntLitNode extends ExpNode {
     private int myLineNum;
     private int myCharNum;
     private int myIntVal;
+    @Override
+    public void codeGen() {
+        // TODO Auto-generated method stub
+        
+    }
 }
 
 class StringLitNode extends ExpNode {
@@ -2333,6 +2381,18 @@ class LessNode extends RelationalExpNode {
     public LessNode(ExpNode exp1, ExpNode exp2) {
         super(exp1, exp2);
     }
+
+    public void codeGen() {
+    this.myExp1.codeGen();
+        this.myExp2.codeGen();
+
+        Codegen.genPop(Codegen.T1);
+        Codegen.genPop(Codegen.T0);
+
+        Codegen.generate("", Codegen.T0, Codegen.T0, Codegen.T1);
+
+        Codegen.genPush(Codegen.T0);
+    }
     
     public void unparse(PrintWriter p, int indent) {
         p.print("(");
@@ -2357,6 +2417,15 @@ class GreaterNode extends RelationalExpNode {
     }
 
     public void codeGen() {
+        this.myExp1.codeGen();
+        this.myExp2.codeGen();
+
+        Codegen.genPop(Codegen.T1);
+        Codegen.genPop(Codegen.T0);
+
+        Codegen.generate("", Codegen.T0, Codegen.T0, Codegen.T1);
+
+        Codegen.genPush(Codegen.T0);
 
 
     }
@@ -2374,6 +2443,20 @@ class LessEqNode extends RelationalExpNode {
         myExp2.unparse(p, 0);
         p.print(")");
     }
+
+    public void codeGen() {
+        this.myExp1.codeGen();
+        this.myExp2.codeGen();
+
+        Codegen.genPop(Codegen.T1);
+        Codegen.genPop(Codegen.T0);
+
+        Codegen.generate("", Codegen.T0, Codegen.T0, Codegen.T1);
+
+        Codegen.genPush(Codegen.T0);
+
+        
+    }
 }
 
 class GreaterEqNode extends RelationalExpNode {
@@ -2387,5 +2470,19 @@ class GreaterEqNode extends RelationalExpNode {
         p.print(" >= ");
         myExp2.unparse(p, 0);
         p.print(")");
+    }
+
+    public void codeGen() {
+
+        this.myExp1.codeGen();
+        this.myExp2.codeGen();
+
+        Codegen.genPop(Codegen.T1);
+        Codegen.genPop(Codegen.T0);
+
+        Codegen.generate("", Codegen.T0, Codegen.T0, Codegen.T1);
+
+        Codegen.genPush(Codegen.T0);
+
     }
 }
