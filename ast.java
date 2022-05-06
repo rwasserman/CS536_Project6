@@ -189,6 +189,7 @@ class ProgramNode extends ASTnode {
 }
 
 class DeclListNode extends ASTnode {
+
     public DeclListNode(List<DeclNode> S) {
         myDecls = S;
     }
@@ -361,6 +362,22 @@ class StmtListNode extends ASTnode {
             node.nameAnalysis(symTab);
         }
     }    
+
+    public void codeGen(String label) {
+
+        int size = this.myStmts.size();
+
+        //for each exp in myExps
+        for (int i = 0; i < size; i++){
+
+            StmtNode iterNode = this.myStmts.get(i);
+            iterNode.codeGen(label);
+
+        }
+
+
+        return;
+    }
     
     /***
      * typeCheck
@@ -466,6 +483,8 @@ abstract class DeclNode extends ASTnode {
      ***/
     abstract public Sym nameAnalysis(SymTable symTab);
 
+    abstract public void codeGen();
+
     // default version of typeCheck for non-function decls
     public void typeCheck() { }
 }
@@ -475,6 +494,19 @@ class VarDeclNode extends DeclNode {
         myType = type;
         myId = id;
         mySize = size;
+    }
+
+    public void codeGen() {
+        if(!Sym.getTrueIfLocal()) {
+            //i
+            
+            Codegen.generate(".data");
+            Codegen.generate(".align", "2");
+            Codegen.generateLabeled("_" + myId.name(), ".space", "", "4");
+            myId.sym().setLocalOffset(1);
+        } 
+
+        return;
     }
 
     /***
@@ -591,6 +623,10 @@ class FnDeclNode extends DeclNode {
         myId = id;
         myFormalsList = formalList;
         myBody = body;
+    }
+
+    public void codeGen() {
+
     }
 
     /***
@@ -931,6 +967,8 @@ class StructNode extends TypeNode {
 abstract class StmtNode extends ASTnode {
     abstract public void nameAnalysis(SymTable symTab);
     abstract public void typeCheck(Type retType);
+    //abstract public void codeGen(); //this is going to need a label
+    abstract public void codeGen(String label);
 }
 
 class AssignStmtNode extends StmtNode {
@@ -944,6 +982,12 @@ class AssignStmtNode extends StmtNode {
      ***/
     public void nameAnalysis(SymTable symTab) {
         myAssign.nameAnalysis(symTab);
+    }
+
+    public void codeGen(String label) {
+
+        this.myAssign.codeGen();
+        return;
     }
     
     /***
@@ -967,6 +1011,29 @@ class PostIncStmtNode extends StmtNode {
     public PostIncStmtNode(ExpNode exp) {
         myExp = exp;
     }
+
+    public void codeGen(String label) {
+
+        if(this.myExp instanceof IdNode) {
+
+            //cast to idNode
+           ((IdNode) myExp).genAddress();
+           myExp.codeGen();
+
+           Codegen.genPop(Codegen.T0);
+           Codegen.genPop(Codegen.T1);
+
+           Codegen.generate("add", Codegen.T0, Codegen.T1, 1);
+           Codegen.generateIndexed("sw", Codegen.T0, Codegen.T1, 0);
+        }
+
+        return;
+
+    }
+        
+
+    
+
     
     /***
      * nameAnalysis
@@ -1010,6 +1077,26 @@ class PostDecStmtNode extends StmtNode {
     public void nameAnalysis(SymTable symTab) {
         myExp.nameAnalysis(symTab);
     }
+
+     public void codeGen(String label) {
+
+        if(this.myExp instanceof IdNode) {
+
+            //cast to idNode
+           ((IdNode) myExp).genAddress();
+           myExp.codeGen();
+
+           Codegen.genPop(Codegen.T0);
+           Codegen.genPop(Codegen.T1);
+
+           //same as "increment" just change to sub
+           Codegen.generate("sub", Codegen.T0, Codegen.T1, 1);
+           Codegen.generateIndexed("sw", Codegen.T0, Codegen.T1, 0);
+        }
+
+        return;
+
+    }
     
     /***
      * typeCheck
@@ -1034,6 +1121,16 @@ class PostDecStmtNode extends StmtNode {
 }
 
 class ReadStmtNode extends StmtNode {
+
+    public void codeGen(String label) {
+        myExp.codeGen();
+
+        Codegen.generate("li", Codegen.V0, 5);
+        Codegen.generate("syscall");
+        Codegen.genPop(Codegen.T0);
+
+        return;
+    }
     public ReadStmtNode(ExpNode e) {
         myExp = e;
     }
@@ -1082,6 +1179,23 @@ class ReadStmtNode extends StmtNode {
 class WriteStmtNode extends StmtNode {
     public WriteStmtNode(ExpNode exp) {
         myExp = exp;
+    }
+
+    public void codeGen(String label) {
+        myExp.codeGen();
+        Codegen.genPop(Codegen.A0);
+
+        if(myExp.typeCheck().isStringType()) {
+            Codegen.generate("li", Codegen.V0, 4);
+        }
+
+        if(myExp.typeCheck().isBoolType() || myExp.typeCheck().isIntType()) {
+            Codegen.generate("li", Codegen.V0, 1);
+        }
+
+        Codegen.generate("syscall");
+
+        return;
     }
 
     /***
@@ -1158,6 +1272,22 @@ class IfStmtNode extends StmtNode {
             System.exit(-1);        
         }
     }
+
+    public void codeGen(String label) {
+
+        String exit = Codegen.nextLabel();
+
+        myExp.codeGen();
+        Codegen.genPop(Codegen.T0 );
+        Codegen.generate("beq", Codegen.T0, Codegen.FALSE, exit);
+        myStmtList.codeGen(label);
+        Codegen.genLabel(exit);
+        
+
+
+
+        return;
+    }
     
      /***
      * typeCheck
@@ -1199,6 +1329,26 @@ class IfElseStmtNode extends StmtNode {
         myThenStmtList = slist1;
         myElseDeclList = dlist2;
         myElseStmtList = slist2;
+    }
+
+    public void codeGen(String label) {
+        String elseLabel = Codegen.nextLabel();
+        String exitLabel = Codegen.nextLabel();
+
+        myExp.codeGen();
+        Codegen.genPop(Codegen.T0);
+        Codegen.generate("beq", Codegen.T0, Codegen.FALSE, elseLabel);
+        myThenStmtList.codeGen(label);
+        Codegen.generate("b",exitLabel);
+        Codegen.genLabel(elseLabel);
+        myElseStmtList.codeGen(label);
+        Codegen.generate(exitLabel);
+
+        
+
+
+
+        return;
     }
     
     /***
@@ -1340,14 +1490,6 @@ class WhileStmtNode extends StmtNode {
 
         Codegen.genLabel(exit);
 
-        
-        
-        //TODO: START WITH stmtList NEXT SESSION
-        
-        
-
-
-
         return;
     }
         
@@ -1380,6 +1522,7 @@ class CallStmtNode extends StmtNode {
     public void nameAnalysis(SymTable symTab) {
         myCall.nameAnalysis(symTab);
     }
+
     
     /***
      * typeCheck
@@ -1394,7 +1537,9 @@ class CallStmtNode extends StmtNode {
         p.println(";");
     }
 
-    public void codeGen() {
+    public void codeGen(String label) {
+
+        // System.out.println(label);
 
         this.myCall.codeGen();
         return;
@@ -1675,6 +1820,21 @@ class IdNode extends ExpNode {
         myLineNum = lineNum;
         myCharNum = charNum;
         myStrVal = strVal;
+    }
+
+    public void genAddress() {
+        
+        int offset = mySym.getLocalOffset();
+
+        if(offset > 0) {
+            Codegen.generate("la", Codegen.T0, "_" + myStrVal);
+        }
+
+        else {
+            Codegen.generate("la", Codegen.T0, Codegen.FP, offset);
+        }
+
+        Codegen.genPush(Codegen.T0);
     }
 
 
